@@ -1,0 +1,387 @@
+---
+title: "Capstone Project - MovieLens"
+author: "Stevonne Nugent"
+date: "12/9/2020"
+output: 
+ pdf_document:
+ toc: true
+ toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+#Load package
+library(tidyverse)
+library(tinytex)
+library(gt)
+```
+
+# **Executive Summary**
+
+```{r datasets}
+#load datasets
+edx_head <- readRDS("E:/CAPSTONE PROJECT/edx_head.Rds")
+movielens_head <- readRDS("E:/CAPSTONE PROJECT/movielens_head.Rds")
+descriptive_stats <- readRDS("E:/CAPSTONE PROJECT/descriptive_stats.Rds")
+top10_rated_movies <- readRDS("E:/CAPSTONE PROJECT/top10_rated_movies.Rds")
+once_rated_movies <- readRDS("E:/CAPSTONE PROJECT/once_rated_movies.Rds")
+descriptive_stats_users <- readRDS("E:/CAPSTONE PROJECT/descriptive_stats_users.Rds")
+descriptive_stats_userrating <- readRDS("E:/CAPSTONE PROJECT/descriptive_stats_userrating.Rds")
+genre_top10 <- readRDS("E:/CAPSTONE PROJECT/genre_top10.Rds")
+genre_bottom10 <- readRDS("E:/CAPSTONE PROJECT/genre_bottom10.Rds")
+movieyear_top10 <- readRDS("E:/CAPSTONE PROJECT/movieyear_top10.Rds")
+movieyear_bottom10 <- readRDS("E:/CAPSTONE PROJECT/movieyear_bottom10.Rds")
+rmse_results <- readRDS("E:/CAPSTONE PROJECT/rmse_results.Rds")
+```
+
+The purpose of this project is to create a movie recommendation system utilizing a subset of the original MovieLens dataset. This subset used for the assessment contained approximately 10 million movie ratings (reviews) for 10,677 movies by 69,878 users, which was further separated 90% and 10% into edx and validation datasets, respectively. The edx dataset was used for model building and testing, while the validation dataset was used to test the accuracy of the final model developed with the aim of attaining a root mean square error (RMSE) of less than 0.86490.
+
+ 
+
+To facilitate the development of the final model (recommendation system), the average effect of the variables associated with each movie, user, genre and movie release year was used. For model development the edx dataset was randomly separated into a train (edxtrain) and test (edxtest) dataset. The edxtrain set was used to build the model and the edxtest set was used to tune the penalty terms. The model that resulted in the lowest RMSE was chosen and then tested on the validation set to assess its accuracy.
+
+ 
+
+Data analysis was undertaken to examine and explore the data to assist in the process of developing the model. A total of 4 predictors were included in the model, namely movieId (b~i~); userId (b~j~); genres (b~g~); and movie year (b~y~). A regularization approach was used in the development of the model based on the fact that some predictors had a small sample size, and optimization of the effects of each variable was executed at the each stage of the model development process.
+
+ 
+
+The final model obtained was then applied to the validation dataset to predict the movie rating of a user producing an RMSE of 0.86464, which was below the target of 0.86490.
+
+# **Section 1: Introduction**
+
+Recommendation systems in general use historical ratings of goods and services by their users to make specific recommendations based on rating predictions. These systems become very useful to consumers as a wide variety of goods and services are available for consumption.
+
+In this project, the goal was to build a movie recommendation system that will predict ratings for a set of users. The movie recommender service MovieLens 10M Dataset from Harper and Konstan 2016 was used. The dataset contained 10,000,054 movie ratings for 10,677 movies, from 69,878 users. To assess the accuracy of the final movie recommendation model developed, the MovieLens dataset was divided into an edx and a validation dataset, the former for training and testing the model and the latter represents the final holdout dataset to test the accuracy of the model. The objective was to build a model to predict user rating of movies in the validation dataset utilizing the edx data set with a root mean square error (RMSE) of less than 0.86490.
+
+To build the recommendation model, the average effect of movie, user, genre, and movie year was estimated. The rest of the paper is organized as follows:
+
+-   Section 2 -- Data Description, Exploration & Wrangling
+
+-   Section 3 -- Model Development
+
+-   Section 4 -- Results
+
+-   Section 5 -- Conclusion.
+
+# **Section 2: Data Description, Exploration & Wrangling**
+
+Paramount to any data analysis process are describing the data to be used; exploring the data to see trends and getting more details about the variables to see their potential for inclusion into model development; and any data cleaning that may be needed to have the data in a format most suitable for use.
+
+## *Data Description*
+
+The MovieLens dataset used contained 10,000,054 rows and 6 columns with no missing values. The 6 columns were the following variables:
+
+-   userId -- unique user identification number, there are 69,878 unique users
+
+-   movieId -- unique movie identification number, there are 10,677 unique movies
+
+-   rating -- rating given by each user to a specific movie, ratings are on a 5 star scale with 0.5 point increment, i.e. ratings range from 0.5 to 5.0, there are 10 unique rating scores
+
+-   timestamp -- the date and time a movie was rated measured in seconds, there are 7,096,905 unique time stamps
+
+-   title -- contains the title of a movie including the year the movie was released, there are 10,676 unique movie titles
+
+-   genres -- contains a list of pipe-separated genre of each movie, there are 797 unique genre groups.
+
+Table 1 shows the first 6 rows in the MovieLens dataset. Note, the first 6 rows shows information for only 1 user, with userId 1 who rated 6 different movies (based on unique movieId and title) and gave each the maximum rating of 5.
+
+```{r}
+#Table 1: First 6 Rows of the MovieLens 10M Dataset
+movielens_head %>% gt() %>% 
+  tab_header(title = "Table 1",
+             subtitle = "First 6 Rows of the MovieLens 10M Dataset") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title"))) %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+The aim of this project is to build a model with the ability of predicting the rating a user will give a movie, i.e. rating is the outcome variable and the other variables will be probable predictor variables that will assist in predicting the rating. To mitigate against the possibility of overfitting this model, the original MovieLens dataset which contains approximately 10 million movie ratings (reviews) for 10,677 movies by 69,878 users was randomly separated into edx dataset and validation dataset, which represented 90% and 10% of the original dataset, respectively. The former was used to train and tune the model and the latter was used to evaluate the final model, to ensure this was possible all userId and movieId in the MovieLens dataset needed to be in the edx dataset.
+
+## *Data Wrangling*
+
+The edx dataset was examined and transformed to identify possible predictor variables. Once identified the changes made to the edx dataset will be done to the validation dataset prior to evaluating the final model.
+
+Initial data exploration highlighted that the genres were pipe-separated, the title contained the year the movie was released and the timestamp was in seconds since Midnight Coordinated Universal Time January 1, 1970. There was need to transform these variables into a more useful format as the specific genre, the year the movie was released and the year the movie was reviewed could be potential predictor variables. The following changes were made:
+
+1.  convert timestamp to human readable date format
+
+2.  extract the month and year from the date
+
+3.  extract the release year for each movie from the title. Table 2 shows the first 6 rows of select variables that were processed from the edx dataset to make them more useful.
+
+```{r}
+#Table 2
+edx_head %>% select(4,5,8,9,10,11) %>% gt() %>% 
+  tab_header(title = "Table 2",
+             subtitle = "First 6 Rows of Select Variables from the Processed edx Dataset") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title"))) %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+The transformed edx dataset was then randomly separated into edxtrain and edxtest datasets, with a respective ratio of 90% and 10%. Model development took place using the edxtrain dataset to build the model and the edxtest dataset to calibrate the model parameters. As with the edx and MovieLens datasets, it was ensured that the edxtrain dataset had all the movies and users as the edx dataset.
+
+## *Data Exploration*
+
+The edxtrain dataset was explored individually and collectively to examine possible relationships, to put together a list of potential predictor variables.
+
+### rating
+
+-   rating of 'i' movie by 'j' user ranges from 0.5--5.0, with 0.5 point increments (Figure 1)
+
+-   the average rating is 3.512 and the median is 4.0 (Table 3)
+
+-   rating is more likely to be a whole number than a fraction (see Figure 1).
+
+```{r}
+#Table 3
+descriptive_stats %>% gt() %>% 
+  tab_header(title = "Table 3",
+             subtitle = "Descriptive Statistics of Ratings in the edxtrain Dataset") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title"))) %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+```{r}
+#Figure 1
+knitr::include_graphics("fig 1 rating dist.png")
+```
+
+### movieId
+
+-   unique identification for each movie
+
+-   10,677 unique movie IDs
+
+-   potential predictor variable given the fact that the quality of a movie impacts its rating and the higher the quality the more likely a user will give it a higher rating on average, and vice versa
+
+-   dependability of the variable is linked to the number of users that would have given the movie a rating, for example, the average rating for a movie that has been watched many times is more dependable in terms of how others may rate this movie, compared with an average rating for a movie that has been rated one or two times
+
+-   to improve dependability of the rating the number of users that contributed to the movie rating becomes important
+
+-   Figure 2 shows that some movies were rated more frequently than others, and Table 4 reveals possible hit movies, for example movieId 593, "Silence of the Lambs" which was the 3rd most rated movie (27,327) with an average rating of 4.203 out of 5
+
+-   likewise, less known movies (non-hit movies) were rated less frequently, with 159 movies being rated just once, therefore we would be less confident in using its average rating to predict how other users will rate that movie---for example movieId 53355, "Sun Alley (Sonnenallee)" which was rated once and given a 5-star rating (Table 5).
+
+```{r}
+#Figure 2
+knitr::include_graphics("fig 2 rating dist by movie.png")
+```
+
+```{r}
+#Table 4
+top10_rated_movies %>% gt() %>% 
+  tab_header(title = "Table 4",
+             subtitle = "Top 10 Rated Movies") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+```{r}
+#Table 5
+once_rated_movies %>% gt() %>% 
+  tab_header(title = "Table 5",
+             subtitle = "Movies Rated Only Once with High Ratings") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+To ensure the dependability of the variable movieId in the model and account for low frequency rated movies with high ratings, we will utilize regularization to constrain the variability of size effects by adding a penalty term.
+
+### userId
+
+-   unique identification for each user
+
+-   69,878 unique users in the edxtrain dataset
+
+-   dependability of userId as a predictor variable (user effect) relies on the frequency in which a user rates movies
+
+-   as with the movieId variable where some movies were rated more than others, some users are more active than others
+
+-   minimum number of ratings by a user was 9, maximum was 5,931 (Table 6a)
+
+-   average user effect ranged from 0.5 to 5.0 (Table 6b).
+
+```{r}
+#Table 6a
+descriptive_stats_users %>% gt() %>% 
+  tab_header(title = "Table 6a",
+             subtitle = "Distribution of Frequency of User Rating") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+```{r}
+#Table 6b
+descriptive_stats_userrating %>% gt() %>% 
+  tab_header(title = "Table 6b",
+             subtitle = "Distribution of Average User Rating") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+### genres
+
+-   classified the style/type of movie
+
+-   some movies were classified as multiple genres some as single and there are 797 unique genre groups
+
+-   there are 18 genres, IMAX (high-resolution movies) and 1 movie with no rating which was watched 7 times (Figure 3)
+
+-   top 3 watched genres was Drama, Comedy and Action (see Figure 3), of note these top rated genres (that is, the genre that appears the most individually or as part of a genre group)
+
+```{r}
+#Figure 3
+knitr::include_graphics("fig 3 genre dist.png")
+```
+
+-   genre grouping with the highest average rating was Animation\|IMAX\|Sci-Fi at 4.67 (Table 7)
+
+-   genre grouping with the lowest average rating was Documentary\|Horror at 1.44 (Table 8)
+
+-   some genre groups were rated frequently (e.g. Crime\|Mystery\|Thriller, with 24,173 ratings) {see Table 7} while others were rated infrequently (e.g. Action\|Drama\|Horror\|Sci-Fi, with 4 ratings) {see Table 8}.
+
+```{r}
+#Table 7
+genre_top10 %>% gt() %>% 
+  tab_header(title = "Table 7",
+             subtitle = "Top 10 Genre Groupings by Average Rating") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+```{r}
+#Table 8
+genre_bottom10 %>% gt() %>% 
+  tab_header(title = "Table 8",
+             subtitle = "Bottom 10 Genre Groupings by Average Rating") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+### movieyear
+
+-   first movie was released in 1915 and the last movie was released in 2008 (Figure 4)
+
+-   movies released in 1995 were most rated (see Figure 4)
+
+-   movies released in 1946 received the highest average rating of 4.06 (Table 9)
+
+-   movies released in 1915 received the lowest average rating of 3.27 (Table 10)
+
+```{r}
+#Table 9
+movieyear_top10 %>% gt() %>% 
+  tab_header(title = "Table 9",
+             subtitle = "Top 10 Movie Years by Average Rating") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+```{r}
+#Table 10
+movieyear_bottom10 %>% gt() %>% 
+  tab_header(title = "Table 10",
+             subtitle = "Bottom 10 Movie Years by Average Rating") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+```{r}
+#Figure 4
+knitr::include_graphics("fig 4 movie ratings by movie year.png")
+```
+
+# **Section 3: Model Development**
+
+Based on the results obtained in section 2, the 4 variables were used as prediction variables in a phased approach. This was done by adding each variable a step at a time while optimizing the penalty term using the lowest RMSE based on the model to predict ratings in the edxtest dataset for each variable and testing the RMSE at each stage to assess if our target of less than 0.86490 was met. Note that for all models tested the predicted ratings were constrained to a minimum value of 0.5 and a maximum of 5.0, since the ratings ranged from 0.5 and 5.0. The variables used were:
+
+-   overall average effect ($\bar{b}$) -- average rating of all movies
+
+-   movie effect (b~i~) -- average movie effect while controlling for overall average
+
+-   user effect (b~j~) -- average user effect while controlling for overall average rating and movie effect
+
+-   genre effect (b~g~) -- average genres effect while controlling for overall average rating, movie and user effects
+
+-   movieyear effect (b~y~) -- average movie year effect while controlling for overall average rating, movie, user and genres effects.
+
+The objective is to estimate the rating "r" of each movie "i" by each user "j"---r~i~,~j~---using the above listed variables.
+
+The estimate for r~i~,~j~ will be $\hat{b}_{i,j}$ leading to the following model:
+
+$$
+\hat{b}_{i,j} = \bar{b} + \hat{b}_i + \hat{b}_j + \hat{b}_g + \hat{b}_y\
+$$
+
+After $\hat{b}_{i,j}$ is estimated, its values were constrained by the following conditions:
+
+if $\hat{b}_{i,j}$ \< 0.5, then $\hat{b}_{i,j}$ = 0.5
+
+if $\hat{b}_{i,j}$ \> 5.0, then $\hat{b}_{i,j}$ = 5.0
+
+$$
+\hat{r}_{i,j} = \bar{b} + \hat{b}_i + \hat{b}_j + \hat{b}_g + \hat{b}_y + \hat{e}_{i,j}\
+$$
+
+$\hat{e}_{i,j}$ is the error term and we will minimize the RMSE
+
+$$
+RMSE =  \sqrt{\frac{1}{N} \sum_{i,j}^{} \left( \hat{b}_{i,j} - r_{i,j} \right)^2 }\
+$$
+
+As shown in section 2, some estimates have small sample sizes, for example movies rated only once. To control for this a regularized model was used as follows:
+
+-   overall average effect is $\bar{b}$
+-   movie effect is $$
+    \hat{b}_i = \frac {1}{n_i+\lambda_i} \sum_{j=1}^{n_j}(r_{i,j}-\bar{b})
+    $$
+
+The sequencing above for the movie effect continues for all other effects user, genre and movieyear each using a different optimal lambda.
+
+# **Section 4: Results**
+
+This section presents the modeling results and discusses the model performance. The model was developed using a phased approach adding each variable one step at a time while checking the RSME. Figure 5 to Figure 8 show the range of lambda values and their respective RMSE for the rating variable in the edxtest dataset. The lambda that minimizes the RMSE is chosen to estimate the value of each effect.
+
+```{r}
+#Figure 5
+knitr::include_graphics("fig 5 best lambda reg1.png")
+```
+
+```{r}
+#Figure 6
+knitr::include_graphics("fig 6 best lambda reg2.png")
+```
+
+```{r}
+#Figure 7
+knitr::include_graphics("fig 7 best lambda reg3.png")
+```
+
+```{r}
+#Figure 8
+knitr::include_graphics("fig 8 best lambda reg4.png")
+```
+
+```{r}
+#Table 11
+rmse_results %>% gt() %>% 
+  tab_header(title = "Table 11",
+             subtitle = "RMSE for Each Model Using edxtest Dataset") %>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("title")))%>% 
+  tab_style(style = list(cell_text(weight = "bolder")), locations = cells_title(groups = c("subtitle")))
+```
+
+Adding the individual effects led to a reduction in the RMSE (Table 11). The largest reduction occurred for the movie and user effect. After applying the final model to the validation datatset it produced an RMSE of 0.86464, meeting our target of less than 0.86490.
+
+# **Section 5: Conclusion**
+
+The project's objective was to predict movie ratings in the validation dataset from a model built using the edx dataset. To achieve this the impact of movies, users, genres and movie release year as predictors on ratings was examined. The final model produced an RMSE of 0.8646428, which met the target of an RMSE less than 0.86490.
+
+## *Limitations*
+
+Lack of higher computer power (RAM capacity), which limited the ability of utilizing more advanced machine learning techniques.
+
+## *Future Work*
+
+Collecting additional data on the users, for example, the age and gender of the users, to use as additional predictors in developing a model using a subset of the data with this additional information.
